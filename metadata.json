@@ -1,0 +1,6 @@
+{
+  "name": "Croissant-Rouge Algérien - Sidi Bel Abbès",
+  "description": "الموقع الرسمي والمكتبة الرقمية للجنة الولائية للهلال الأحمر الجزائري بسيدي بلعباس. منصة لإدارة الأخبار، الإعلانات، المتطوعين، حملات التبرع بالدم، والتعليم الإسعافي.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
