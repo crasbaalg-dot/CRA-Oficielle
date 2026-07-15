@@ -1,0 +1,225 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 1. Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Hardened Global Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (request.auth.token.email == "cra.sba.alg@gmail.com" && request.auth.token.email_verified == true)
+      );
+    }
+
+    // --- Type Validation Schemas ---
+
+    function isValidStats(data) {
+      return data.volunteersCount is int && data.volunteersCount >= 0 &&
+             data.bloodUnitsCount is int && data.bloodUnitsCount >= 0 &&
+             data.firstAidTrainedCount is int && data.firstAidTrainedCount >= 0 &&
+             data.campaignsCount is int && data.campaignsCount >= 0;
+    }
+
+    function isValidSettings(data) {
+      return data.siteNameAr is string && data.siteNameAr.size() > 0 && data.siteNameAr.size() <= 200 &&
+             data.siteNameFr is string && data.siteNameFr.size() > 0 && data.siteNameFr.size() <= 200 &&
+             data.phone is string && data.phone.size() <= 30 &&
+             data.emergencyPhone is string && data.emergencyPhone.size() <= 30 &&
+             data.email is string && data.email.size() <= 100 &&
+             data.addressAr is string && data.addressAr.size() <= 300 &&
+             data.addressFr is string && data.addressFr.size() <= 300 &&
+             data.workingHoursAr is string && data.workingHoursAr.size() <= 150 &&
+             data.workingHoursFr is string && data.workingHoursFr.size() <= 150;
+    }
+
+    function isValidNews(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.titleAr is string && data.titleAr.size() > 0 && data.titleAr.size() <= 300 &&
+             data.titleFr is string && data.titleFr.size() > 0 && data.titleFr.size() <= 300 &&
+             data.contentAr is string && data.contentAr.size() <= 10000 &&
+             data.contentFr is string && data.contentFr.size() <= 10000 &&
+             data.summaryAr is string && data.summaryAr.size() <= 1000 &&
+             data.summaryFr is string && data.summaryFr.size() <= 1000 &&
+             data.categoryAr is string && data.categoryAr.size() <= 100 &&
+             data.categoryFr is string && data.categoryFr.size() <= 100 &&
+             data.image is string && data.image.size() <= 1000 &&
+             data.date is string && data.date.size() <= 20 &&
+             data.views is int && data.views >= 0 &&
+             data.isPinned is bool &&
+             data.isDraft is bool;
+    }
+
+    function isValidAnnouncement(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.titleAr is string && data.titleAr.size() > 0 && data.titleAr.size() <= 300 &&
+             data.titleFr is string && data.titleFr.size() > 0 && data.titleFr.size() <= 300 &&
+             data.contentAr is string && data.contentAr.size() <= 10000 &&
+             data.contentFr is string && data.contentFr.size() <= 10000 &&
+             data.priority is string && (data.priority == "low" || data.priority == "medium" || data.priority == "high" || data.priority == "critical") &&
+             data.date is string && data.date.size() <= 20 &&
+             data.isPinned is bool;
+    }
+
+    function isValidMember(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.nameAr is string && data.nameAr.size() > 0 && data.nameAr.size() <= 200 &&
+             data.nameFr is string && data.nameFr.size() > 0 && data.nameFr.size() <= 200 &&
+             data.roleAr is string && data.roleAr.size() <= 200 &&
+             data.roleFr is string && data.roleFr.size() <= 200 &&
+             data.bioAr is string && data.bioAr.size() <= 2000 &&
+             data.bioFr is string && data.bioFr.size() <= 2000 &&
+             data.image is string && data.image.size() <= 1000 &&
+             data.displayOrder is int && data.displayOrder >= 0;
+    }
+
+    function isValidFirstAid(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.titleAr is string && data.titleAr.size() > 0 && data.titleAr.size() <= 200 &&
+             data.titleFr is string && data.titleFr.size() > 0 && data.titleFr.size() <= 200 &&
+             data.descriptionAr is string && data.descriptionAr.size() <= 1000 &&
+             data.descriptionFr is string && data.descriptionFr.size() <= 1000 &&
+             data.emergencyInstructionsAr is string && data.emergencyInstructionsAr.size() <= 2000 &&
+             data.emergencyInstructionsFr is string && data.emergencyInstructionsFr.size() <= 2000 &&
+             data.icon is string && data.icon.size() <= 100 &&
+             data.stepsAr is list && data.stepsAr.size() <= 50 &&
+             data.stepsFr is list && data.stepsFr.size() <= 50;
+    }
+
+    // Checking first element is a string as required by Guard
+    function isValidFirstAidListTypes(data) {
+      return (data.stepsAr.size() == 0 || data.stepsAr[0] is string) &&
+             (data.stepsFr.size() == 0 || data.stepsFr[0] is string);
+    }
+
+    function isValidCampaign(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.titleAr is string && data.titleAr.size() > 0 && data.titleAr.size() <= 350 &&
+             data.titleFr is string && data.titleFr.size() > 0 && data.titleFr.size() <= 350 &&
+             data.locationAr is string && data.locationAr.size() <= 300 &&
+             data.locationFr is string && data.locationFr.size() <= 300 &&
+             data.date is string && data.date.size() <= 20 &&
+             data.time is string && data.time.size() <= 50 &&
+             data.status is string && (data.status == "upcoming" || data.status == "ongoing" || data.status == "completed") &&
+             data.descriptionAr is string && data.descriptionAr.size() <= 4000 &&
+             data.descriptionFr is string && data.descriptionFr.size() <= 4000;
+    }
+
+    function isValidVolunteer(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.fullName is string && data.fullName.size() > 0 && data.fullName.size() <= 200 &&
+             data.email is string && data.email.size() <= 100 &&
+             data.phone is string && data.phone.size() <= 30 &&
+             data.birthDate is string && data.birthDate.size() <= 20 &&
+             data.gender is string && data.gender.size() <= 10 &&
+             data.bloodType is string && data.bloodType.size() <= 10 &&
+             data.profession is string && data.profession.size() <= 150 &&
+             data.appliedDate is string && data.appliedDate.size() <= 20 &&
+             data.status is string && (data.status == "pending" || data.status == "approved" || data.status == "rejected");
+    }
+
+    function isValidContact(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
+             data.email is string && data.email.size() <= 100 &&
+             data.subject is string && data.subject.size() > 0 && data.subject.size() <= 300 &&
+             data.message is string && data.message.size() > 0 && data.message.size() <= 5000 &&
+             data.date is string && data.date.size() <= 20 &&
+             data.isRead is bool;
+    }
+
+    function isValidAdmin(data) {
+      return data.uid is string && data.uid.size() <= 128 &&
+             data.email is string && data.email.size() <= 100 &&
+             data.displayName is string && data.displayName.size() <= 200 &&
+             data.role is string && (data.role == "super_admin" || data.role == "admin" || data.role == "editor" || data.role == "volunteer_manager" || data.role == "viewer") &&
+             data.createdAt is string && data.createdAt.size() <= 20 &&
+             data.status is string && (data.status == "active" || data.status == "disabled");
+    }
+
+    // --- Collection Matching Blocks ---
+
+    // 1. Statistics General Document
+    match /statistics/general {
+      allow read: if true;
+      allow write: if isAdmin() && isValidStats(request.resource.data);
+    }
+
+    // 2. Settings General Document
+    match /settings/general {
+      allow read: if true;
+      allow write: if isAdmin() && isValidSettings(request.resource.data);
+    }
+
+    // 3. News Items
+    match /news/{newsId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidId(newsId) && isValidNews(request.resource.data);
+      allow update: if isAdmin() && isValidNews(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // 4. Announcements
+    match /announcements/{annId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidId(annId) && isValidAnnouncement(request.resource.data);
+      allow update: if isAdmin() && isValidAnnouncement(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // 5. Members
+    match /members/{memId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidId(memId) && isValidMember(request.resource.data);
+      allow update: if isAdmin() && isValidMember(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // 6. First Aid Topics
+    match /first_aid/{faId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidId(faId) && isValidFirstAid(request.resource.data) && isValidFirstAidListTypes(request.resource.data);
+      allow update: if isAdmin() && isValidFirstAid(request.resource.data) && isValidFirstAidListTypes(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // 7. Blood Campaigns
+    match /blood_campaigns/{campId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidId(campId) && isValidCampaign(request.resource.data);
+      allow update: if isAdmin() && isValidCampaign(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // 8. Volunteer Applications (PII isolated to Admins)
+    match /volunteers/{volId} {
+      allow read: if isAdmin();
+      allow create: if isValidId(volId) && isValidVolunteer(request.resource.data) && request.resource.data.status == "pending";
+      allow update, delete: if isAdmin() && isValidVolunteer(request.resource.data);
+    }
+
+    // 9. Contact Messages (PII isolated to Admins)
+    match /contact_messages/{msgId} {
+      allow read: if isAdmin();
+      allow create: if isValidId(msgId) && isValidContact(request.resource.data) && request.resource.data.isRead == false;
+      allow update, delete: if isAdmin() && isValidContact(request.resource.data);
+    }
+
+    // 10. Admins Management
+    match /admins/{adminId} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == adminId);
+      allow write: if isAdmin() && isValidAdmin(request.resource.data);
+    }
+  }
+}

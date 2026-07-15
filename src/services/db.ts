@@ -3,14 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { db, isFirebaseEnabled } from '../lib/firebase';
+import { db, auth, isFirebaseEnabled } from '../lib/firebase';
 import { 
   collection, 
   getDocs, 
   doc, 
   getDoc, 
   setDoc, 
-  addDoc, 
   updateDoc, 
   deleteDoc, 
   query, 
@@ -28,6 +27,54 @@ import {
   Settings,
   User
 } from '../types';
+
+// Error handling types and helpers as required by the Firebase Skill
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  }
+}
+
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): never {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth?.currentUser?.uid || null,
+      email: auth?.currentUser?.email || null,
+      emailVerified: auth?.currentUser?.emailVerified || null,
+      isAnonymous: auth?.currentUser?.isAnonymous || null,
+      tenantId: auth?.currentUser?.tenantId || null,
+      providerInfo: auth?.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error details: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 // Pre-seeded high-quality bilingual data for Sidi Bel Abbès Wilaya Committee
 const DEFAULT_STATS: InstitutionStats = {
@@ -192,7 +239,7 @@ const INITIAL_FIRST_AID: FirstAidTopic[] = [
       "Assurez-vous que l'environnement est sécurisé pour vous et la victime.",
       "Vérifiez l'état de conscience en tapotant ses épaules et en lui parlant à voix haute.",
       "Vérifiez la respiration pendant 10 secondes (mouvement de la poitrine).",
-      "Si la victime ne respire pas, demandez de l'aide et appelez immédiatement le 14.",
+      "Si la victime ne résout pas, demandez de l'aide et appelez immédiatement le 14.",
       "Placez le talon d'une main au centre de la poitrine de la victime, placez l'autre main dessus.",
       "Effectuez des compressions fermes et profondes (5-6 cm) à un rythme de 100 à 120 par minute.",
       "Si vous êtes formé, alternez 30 compressions thoraciques avec 2 insufflations."
@@ -284,8 +331,134 @@ const INITIAL_CAMPAIGNS: BloodCampaign[] = [
   }
 ];
 
-// In-Memory Real-time Safe Persistence DB Engine (resilient LocalStore)
+// In-Memory Real-time Safe Persistence DB Engine (resilient LocalStore + Firebase Sync + Seeding)
 class LocalDbService {
+  private seedingPromise: Promise<void> | null = null;
+
+  // Seeding routine to guarantee default database structure exists in Firestore
+  async ensureSeeded(): Promise<void> {
+    if (!isFirebaseEnabled) return;
+    if (this.seedingPromise) return this.seedingPromise;
+
+    this.seedingPromise = (async () => {
+      try {
+        const seedDocRef = doc(db!, 'metadata', 'seeding');
+        let snap;
+        try {
+          snap = await getDoc(seedDocRef);
+        } catch (err) {
+          console.warn('Could not check seeding metadata (likely guest user):', err);
+          return; // Guest users shouldn't seed, return early and fallback to local or what is in DB
+        }
+
+        if (snap.exists() && snap.data()?.seeded) {
+          console.log('Firestore already seeded.');
+          return;
+        }
+
+        // Only authenticated admin should perform seeding writes
+        const currentUserEmail = auth?.currentUser?.email;
+        const isLocalAdmin = localStorage.getItem('cra_sba_admin_logged') === 'true';
+        if (!currentUserEmail && !isLocalAdmin) {
+          console.log('Database not seeded yet. Guest user falling back to local defaults.');
+          return;
+        }
+
+        console.log('Seeding default bilingual data to Firestore...');
+
+        // 1. Stats
+        try {
+          await setDoc(doc(db!, 'statistics', 'general'), DEFAULT_STATS);
+        } catch (err) {
+          console.warn('Stats seeding failed:', err);
+        }
+
+        // 2. Settings
+        try {
+          await setDoc(doc(db!, 'settings', 'general'), DEFAULT_SETTINGS);
+        } catch (err) {
+          console.warn('Settings seeding failed:', err);
+        }
+
+        // 3. News
+        for (const item of INITIAL_NEWS) {
+          try {
+            await setDoc(doc(db!, 'news', item.id), item);
+          } catch (err) {
+            console.warn(`News ${item.id} seeding failed:`, err);
+          }
+        }
+
+        // 4. Announcements
+        for (const item of INITIAL_ANNOUNCEMENTS) {
+          try {
+            await setDoc(doc(db!, 'announcements', item.id), item);
+          } catch (err) {
+            console.warn(`Announcement ${item.id} seeding failed:`, err);
+          }
+        }
+
+        // 5. Members
+        for (const item of INITIAL_MEMBERS) {
+          try {
+            await setDoc(doc(db!, 'members', item.id), item);
+          } catch (err) {
+            console.warn(`Member ${item.id} seeding failed:`, err);
+          }
+        }
+
+        // 6. First Aid
+        for (const item of INITIAL_FIRST_AID) {
+          try {
+            await setDoc(doc(db!, 'first_aid', item.id), item);
+          } catch (err) {
+            console.warn(`First Aid ${item.id} seeding failed:`, err);
+          }
+        }
+
+        // 7. Blood Campaigns
+        for (const item of INITIAL_CAMPAIGNS) {
+          try {
+            await setDoc(doc(db!, 'blood_campaigns', item.id), item);
+          } catch (err) {
+            console.warn(`Blood Campaign ${item.id} seeding failed:`, err);
+          }
+        }
+
+        // 8. Default Administrator
+        const defaultAdmins: User[] = [
+          {
+            uid: "admin-sba",
+            email: "cra.sba.alg@gmail.com",
+            displayName: "رئيس اللجنة الولائية",
+            role: "super_admin",
+            createdAt: "2026-01-01",
+            status: "active"
+          }
+        ];
+        for (const admin of defaultAdmins) {
+          try {
+            await setDoc(doc(db!, 'admins', admin.uid), admin);
+          } catch (err) {
+            console.warn(`Admin ${admin.uid} seeding failed:`, err);
+          }
+        }
+
+        // Mark as seeded
+        try {
+          await setDoc(seedDocRef, { seeded: true, createdAt: new Date().toISOString() });
+          console.log('Firestore successfully seeded with default bilingual data.');
+        } catch (err) {
+          console.warn('Failed to write seeding metadata status:', err);
+        }
+      } catch (e) {
+        console.warn('Firestore seeding failed:', e);
+      }
+    })();
+
+    return this.seedingPromise;
+  }
+
   private getStorageItem<T>(key: string, fallback: T): T {
     const data = localStorage.getItem(`cra_sba_${key}`);
     if (!data) return fallback;
@@ -304,13 +477,14 @@ class LocalDbService {
   async getStats(): Promise<InstitutionStats> {
     if (isFirebaseEnabled) {
       try {
+        await this.ensureSeeded();
         const docRef = doc(db!, 'statistics', 'general');
         const snap = await getDoc(docRef);
         if (snap.exists()) {
           return snap.data() as InstitutionStats;
         }
       } catch (e) {
-        console.error('Firebase getStats error:', e);
+        handleFirestoreError(e, OperationType.GET, 'statistics/general');
       }
     }
     return this.getStorageItem<InstitutionStats>('statistics', DEFAULT_STATS);
@@ -323,9 +497,10 @@ class LocalDbService {
     
     if (isFirebaseEnabled) {
       try {
+        await this.ensureSeeded();
         await setDoc(doc(db!, 'statistics', 'general'), updated);
       } catch (e) {
-        console.error('Firebase updateStats error:', e);
+        handleFirestoreError(e, OperationType.WRITE, 'statistics/general');
       }
     }
     return updated;
@@ -335,13 +510,14 @@ class LocalDbService {
   async getSettings(): Promise<Settings> {
     if (isFirebaseEnabled) {
       try {
+        await this.ensureSeeded();
         const docRef = doc(db!, 'settings', 'general');
         const snap = await getDoc(docRef);
         if (snap.exists()) {
           return snap.data() as Settings;
         }
       } catch (e) {
-        console.error('Firebase getSettings error:', e);
+        handleFirestoreError(e, OperationType.GET, 'settings/general');
       }
     }
     return this.getStorageItem<Settings>('settings', DEFAULT_SETTINGS);
@@ -354,9 +530,10 @@ class LocalDbService {
 
     if (isFirebaseEnabled) {
       try {
+        await this.ensureSeeded();
         await setDoc(doc(db!, 'settings', 'general'), updated);
       } catch (e) {
-        console.error('Firebase updateSettings error:', e);
+        handleFirestoreError(e, OperationType.WRITE, 'settings/general');
       }
     }
     return updated;
@@ -366,6 +543,7 @@ class LocalDbService {
   async getNews(): Promise<NewsItem[]> {
     if (isFirebaseEnabled) {
       try {
+        await this.ensureSeeded();
         const q = query(collection(db!, 'news'), orderBy('date', 'desc'));
         const querySnapshot = await getDocs(q);
         const fbNews: NewsItem[] = [];
@@ -374,7 +552,7 @@ class LocalDbService {
         });
         if (fbNews.length > 0) return fbNews;
       } catch (e) {
-        console.error('Firebase getNews error:', e);
+        handleFirestoreError(e, OperationType.LIST, 'news');
       }
     }
     return this.getStorageItem<NewsItem[]>('news', INITIAL_NEWS);
@@ -399,10 +577,11 @@ class LocalDbService {
 
     if (isFirebaseEnabled) {
       try {
+        await this.ensureSeeded();
         const id = updatedItem.id;
         await setDoc(doc(db!, 'news', id), updatedItem);
       } catch (e) {
-        console.error('Firebase saveNewsItem error:', e);
+        handleFirestoreError(e, OperationType.WRITE, `news/${updatedItem.id}`);
       }
     }
     return updatedItem;
@@ -415,9 +594,10 @@ class LocalDbService {
 
     if (isFirebaseEnabled) {
       try {
+        await this.ensureSeeded();
         await deleteDoc(doc(db!, 'news', id));
       } catch (e) {
-        console.error('Firebase deleteNewsItem error:', e);
+        handleFirestoreError(e, OperationType.DELETE, `news/${id}`);
       }
     }
   }
@@ -430,9 +610,10 @@ class LocalDbService {
       this.setStorageItem('news', news);
       if (isFirebaseEnabled) {
         try {
+          await this.ensureSeeded();
           await updateDoc(doc(db!, 'news', id), { views: item.views });
         } catch (e) {
-          console.error('Firebase incrementNewsViews error:', e);
+          handleFirestoreError(e, OperationType.UPDATE, `news/${id}`);
         }
       }
     }
@@ -442,6 +623,7 @@ class LocalDbService {
   async getAnnouncements(): Promise<AnnouncementItem[]> {
     if (isFirebaseEnabled) {
       try {
+        await this.ensureSeeded();
         const q = query(collection(db!, 'announcements'), orderBy('date', 'desc'));
         const querySnapshot = await getDocs(q);
         const fbAnn: AnnouncementItem[] = [];
@@ -450,7 +632,7 @@ class LocalDbService {
         });
         if (fbAnn.length > 0) return fbAnn;
       } catch (e) {
-        console.error('Firebase getAnnouncements error:', e);
+        handleFirestoreError(e, OperationType.LIST, 'announcements');
       }
     }
     return this.getStorageItem<AnnouncementItem[]>('announcements', INITIAL_ANNOUNCEMENTS);
@@ -473,9 +655,10 @@ class LocalDbService {
 
     if (isFirebaseEnabled) {
       try {
+        await this.ensureSeeded();
         await setDoc(doc(db!, 'announcements', updatedItem.id), updatedItem);
       } catch (e) {
-        console.error('Firebase saveAnnouncement error:', e);
+        handleFirestoreError(e, OperationType.WRITE, `announcements/${updatedItem.id}`);
       }
     }
     return updatedItem;
@@ -488,9 +671,10 @@ class LocalDbService {
 
     if (isFirebaseEnabled) {
       try {
+        await this.ensureSeeded();
         await deleteDoc(doc(db!, 'announcements', id));
       } catch (e) {
-        console.error('Firebase deleteAnnouncement error:', e);
+        handleFirestoreError(e, OperationType.DELETE, `announcements/${id}`);
       }
     }
   }
@@ -499,6 +683,7 @@ class LocalDbService {
   async getMembers(): Promise<Member[]> {
     if (isFirebaseEnabled) {
       try {
+        await this.ensureSeeded();
         const q = query(collection(db!, 'members'), orderBy('displayOrder', 'asc'));
         const querySnapshot = await getDocs(q);
         const fbMembers: Member[] = [];
@@ -507,7 +692,7 @@ class LocalDbService {
         });
         if (fbMembers.length > 0) return fbMembers;
       } catch (e) {
-        console.error('Firebase getMembers error:', e);
+        handleFirestoreError(e, OperationType.LIST, 'members');
       }
     }
     return this.getStorageItem<Member[]>('members', INITIAL_MEMBERS);
@@ -530,9 +715,10 @@ class LocalDbService {
 
     if (isFirebaseEnabled) {
       try {
+        await this.ensureSeeded();
         await setDoc(doc(db!, 'members', updatedItem.id), updatedItem);
       } catch (e) {
-        console.error('Firebase saveMember error:', e);
+        handleFirestoreError(e, OperationType.WRITE, `members/${updatedItem.id}`);
       }
     }
     return updatedItem;
@@ -545,9 +731,10 @@ class LocalDbService {
 
     if (isFirebaseEnabled) {
       try {
+        await this.ensureSeeded();
         await deleteDoc(doc(db!, 'members', id));
       } catch (e) {
-        console.error('Firebase deleteMember error:', e);
+        handleFirestoreError(e, OperationType.DELETE, `members/${id}`);
       }
     }
   }
@@ -556,6 +743,7 @@ class LocalDbService {
   async getFirstAidTopics(): Promise<FirstAidTopic[]> {
     if (isFirebaseEnabled) {
       try {
+        await this.ensureSeeded();
         const querySnapshot = await getDocs(collection(db!, 'first_aid'));
         const fbFa: FirstAidTopic[] = [];
         querySnapshot.forEach((doc) => {
@@ -563,7 +751,7 @@ class LocalDbService {
         });
         if (fbFa.length > 0) return fbFa;
       } catch (e) {
-        console.error('Firebase getFirstAidTopics error:', e);
+        handleFirestoreError(e, OperationType.LIST, 'first_aid');
       }
     }
     return this.getStorageItem<FirstAidTopic[]>('first_aid', INITIAL_FIRST_AID);
@@ -586,9 +774,10 @@ class LocalDbService {
 
     if (isFirebaseEnabled) {
       try {
+        await this.ensureSeeded();
         await setDoc(doc(db!, 'first_aid', updatedItem.id), updatedItem);
       } catch (e) {
-        console.error('Firebase saveFirstAidTopic error:', e);
+        handleFirestoreError(e, OperationType.WRITE, `first_aid/${updatedItem.id}`);
       }
     }
     return updatedItem;
@@ -601,9 +790,10 @@ class LocalDbService {
 
     if (isFirebaseEnabled) {
       try {
+        await this.ensureSeeded();
         await deleteDoc(doc(db!, 'first_aid', id));
       } catch (e) {
-        console.error('Firebase deleteFirstAidTopic error:', e);
+        handleFirestoreError(e, OperationType.DELETE, `first_aid/${id}`);
       }
     }
   }
@@ -612,6 +802,7 @@ class LocalDbService {
   async getBloodCampaigns(): Promise<BloodCampaign[]> {
     if (isFirebaseEnabled) {
       try {
+        await this.ensureSeeded();
         const q = query(collection(db!, 'blood_campaigns'), orderBy('date', 'desc'));
         const querySnapshot = await getDocs(q);
         const fbCamps: BloodCampaign[] = [];
@@ -620,7 +811,7 @@ class LocalDbService {
         });
         if (fbCamps.length > 0) return fbCamps;
       } catch (e) {
-        console.error('Firebase getBloodCampaigns error:', e);
+        handleFirestoreError(e, OperationType.LIST, 'blood_campaigns');
       }
     }
     return this.getStorageItem<BloodCampaign[]>('blood_campaigns', INITIAL_CAMPAIGNS);
@@ -643,9 +834,10 @@ class LocalDbService {
 
     if (isFirebaseEnabled) {
       try {
+        await this.ensureSeeded();
         await setDoc(doc(db!, 'blood_campaigns', updatedItem.id), updatedItem);
       } catch (e) {
-        console.error('Firebase saveBloodCampaign error:', e);
+        handleFirestoreError(e, OperationType.WRITE, `blood_campaigns/${updatedItem.id}`);
       }
     }
     return updatedItem;
@@ -658,9 +850,10 @@ class LocalDbService {
 
     if (isFirebaseEnabled) {
       try {
+        await this.ensureSeeded();
         await deleteDoc(doc(db!, 'blood_campaigns', id));
       } catch (e) {
-        console.error('Firebase deleteBloodCampaign error:', e);
+        handleFirestoreError(e, OperationType.DELETE, `blood_campaigns/${id}`);
       }
     }
   }
@@ -669,6 +862,7 @@ class LocalDbService {
   async getVolunteerApplications(): Promise<VolunteerApplication[]> {
     if (isFirebaseEnabled) {
       try {
+        await this.ensureSeeded();
         const querySnapshot = await getDocs(collection(db!, 'volunteers'));
         const fbVol: VolunteerApplication[] = [];
         querySnapshot.forEach((doc) => {
@@ -676,7 +870,7 @@ class LocalDbService {
         });
         if (fbVol.length > 0) return fbVol;
       } catch (e) {
-        console.error('Firebase getVolunteerApplications error:', e);
+        handleFirestoreError(e, OperationType.LIST, 'volunteers');
       }
     }
     return this.getStorageItem<VolunteerApplication[]>('volunteers', []);
@@ -697,9 +891,10 @@ class LocalDbService {
 
     if (isFirebaseEnabled) {
       try {
+        await this.ensureSeeded();
         await setDoc(doc(db!, 'volunteers', newItem.id), newItem);
       } catch (e) {
-        console.error('Firebase saveVolunteerApplication error:', e);
+        handleFirestoreError(e, OperationType.WRITE, `volunteers/${newItem.id}`);
       }
     }
     return newItem;
@@ -714,9 +909,10 @@ class LocalDbService {
 
       if (isFirebaseEnabled) {
         try {
+          await this.ensureSeeded();
           await updateDoc(doc(db!, 'volunteers', id), { status });
         } catch (e) {
-          console.error('Firebase updateVolunteerStatus error:', e);
+          handleFirestoreError(e, OperationType.UPDATE, `volunteers/${id}`);
         }
       }
     }
@@ -726,6 +922,7 @@ class LocalDbService {
   async getContactMessages(): Promise<ContactMessage[]> {
     if (isFirebaseEnabled) {
       try {
+        await this.ensureSeeded();
         const querySnapshot = await getDocs(collection(db!, 'contact_messages'));
         const fbMsg: ContactMessage[] = [];
         querySnapshot.forEach((doc) => {
@@ -733,7 +930,7 @@ class LocalDbService {
         });
         if (fbMsg.length > 0) return fbMsg;
       } catch (e) {
-        console.error('Firebase getContactMessages error:', e);
+        handleFirestoreError(e, OperationType.LIST, 'contact_messages');
       }
     }
     return this.getStorageItem<ContactMessage[]>('contact_messages', []);
@@ -752,9 +949,10 @@ class LocalDbService {
 
     if (isFirebaseEnabled) {
       try {
+        await this.ensureSeeded();
         await setDoc(doc(db!, 'contact_messages', newItem.id), newItem);
       } catch (e) {
-        console.error('Firebase saveContactMessage error:', e);
+        handleFirestoreError(e, OperationType.WRITE, `contact_messages/${newItem.id}`);
       }
     }
     return newItem;
@@ -769,9 +967,10 @@ class LocalDbService {
 
       if (isFirebaseEnabled) {
         try {
+          await this.ensureSeeded();
           await updateDoc(doc(db!, 'contact_messages', id), { isRead: true });
         } catch (e) {
-          console.error('Firebase markMessageAsRead error:', e);
+          handleFirestoreError(e, OperationType.UPDATE, `contact_messages/${id}`);
         }
       }
     }
@@ -784,9 +983,10 @@ class LocalDbService {
 
     if (isFirebaseEnabled) {
       try {
+        await this.ensureSeeded();
         await deleteDoc(doc(db!, 'contact_messages', id));
       } catch (e) {
-        console.error('Firebase deleteContactMessage error:', e);
+        handleFirestoreError(e, OperationType.DELETE, `contact_messages/${id}`);
       }
     }
   }
@@ -803,18 +1003,41 @@ class LocalDbService {
         status: "active"
       }
     ];
+    if (isFirebaseEnabled) {
+      try {
+        await this.ensureSeeded();
+        const querySnapshot = await getDocs(collection(db!, 'admins'));
+        const fbAdmins: User[] = [];
+        querySnapshot.forEach((doc) => {
+          fbAdmins.push({ uid: doc.id, ...doc.data() } as User);
+        });
+        if (fbAdmins.length > 0) return fbAdmins;
+      } catch (e) {
+        handleFirestoreError(e, OperationType.LIST, 'admins');
+      }
+    }
     return this.getStorageItem<User[]>('admins', defaultAdmins);
   }
 
   async addAdmin(user: Omit<User, 'uid' | 'createdAt'>): Promise<User> {
     const admins = await this.getAdmins();
+    const uid = `admin-${Date.now()}`;
     const newUser: User = {
       ...user,
-      uid: `admin-${Date.now()}`,
+      uid,
       createdAt: new Date().toISOString().split('T')[0]
     };
     admins.push(newUser);
     this.setStorageItem('admins', admins);
+
+    if (isFirebaseEnabled) {
+      try {
+        await this.ensureSeeded();
+        await setDoc(doc(db!, 'admins', uid), newUser);
+      } catch (e) {
+        handleFirestoreError(e, OperationType.WRITE, `admins/${uid}`);
+      }
+    }
     return newUser;
   }
 }

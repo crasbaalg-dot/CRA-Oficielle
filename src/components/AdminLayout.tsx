@@ -32,6 +32,8 @@ import {
   Home
 } from 'lucide-react';
 import { localDb } from '../services/db';
+import { auth, isFirebaseEnabled } from '../lib/firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { 
   NewsItem, 
   AnnouncementItem, 
@@ -114,9 +116,25 @@ export default function AdminLayout() {
   }, [isAuthenticated]);
 
   // Auth Submit
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loginEmail === 'cra.sba.alg@gmail.com' && loginPassword === 'CRA-SBA-2026') {
+      if (isFirebaseEnabled && auth) {
+        try {
+          await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
+          console.log('Firebase auth successful.');
+        } catch (err: any) {
+          console.warn('Firebase signIn failed, attempting self-healing user creation...', err);
+          if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.code === 'auth/invalid-login-credentials') {
+            try {
+              await createUserWithEmailAndPassword(auth, loginEmail, loginPassword);
+              console.log('Firebase admin user successfully created on-the-fly!');
+            } catch (createErr) {
+              console.error('Failed to auto-create Firebase admin user:', createErr);
+            }
+          }
+        }
+      }
       setIsAuthenticated(true);
       setLoginError('');
       localStorage.setItem('cra_sba_admin_logged', 'true');
@@ -129,7 +147,14 @@ export default function AdminLayout() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (isFirebaseEnabled && auth) {
+      try {
+        await signOut(auth);
+      } catch (err) {
+        console.error('Firebase signOut error:', err);
+      }
+    }
     setIsAuthenticated(false);
     localStorage.removeItem('cra_sba_admin_logged');
     navigate('/');

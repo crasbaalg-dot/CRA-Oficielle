@@ -1,0 +1,304 @@
+{
+  "entities": {
+    "InstitutionStats": {
+      "title": "InstitutionStats",
+      "description": "Statistics of volunteers, blood collection, and training",
+      "type": "object",
+      "properties": {
+        "volunteersCount": { "type": "integer" },
+        "bloodUnitsCount": { "type": "integer" },
+        "firstAidTrainedCount": { "type": "integer" },
+        "campaignsCount": { "type": "integer" }
+      },
+      "required": ["volunteersCount", "bloodUnitsCount", "firstAidTrainedCount", "campaignsCount"]
+    },
+    "Settings": {
+      "title": "Settings",
+      "description": "Bilingual application layout and contact configurations",
+      "type": "object",
+      "properties": {
+        "siteNameAr": { "type": "string" },
+        "siteNameFr": { "type": "string" },
+        "phone": { "type": "string" },
+        "emergencyPhone": { "type": "string" },
+        "email": { "type": "string" },
+        "addressAr": { "type": "string" },
+        "addressFr": { "type": "string" },
+        "workingHoursAr": { "type": "string" },
+        "workingHoursFr": { "type": "string" },
+        "facebookUrl": { "type": "string" },
+        "twitterUrl": { "type": "string" },
+        "youtubeUrl": { "type": "string" },
+        "instagramUrl": { "type": "string" }
+      },
+      "required": [
+        "siteNameAr",
+        "siteNameFr",
+        "phone",
+        "emergencyPhone",
+        "email",
+        "addressAr",
+        "addressFr",
+        "workingHoursAr",
+        "workingHoursFr"
+      ]
+    },
+    "NewsItem": {
+      "title": "NewsItem",
+      "description": "Bilingual news article managed by administrators",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "titleAr": { "type": "string" },
+        "titleFr": { "type": "string" },
+        "summaryAr": { "type": "string" },
+        "summaryFr": { "type": "string" },
+        "contentAr": { "type": "string" },
+        "contentFr": { "type": "string" },
+        "categoryAr": { "type": "string" },
+        "categoryFr": { "type": "string" },
+        "image": { "type": "string" },
+        "date": { "type": "string" },
+        "views": { "type": "integer" },
+        "isPinned": { "type": "boolean" },
+        "isDraft": { "type": "boolean" }
+      },
+      "required": [
+        "id",
+        "titleAr",
+        "titleFr",
+        "summaryAr",
+        "summaryFr",
+        "contentAr",
+        "contentFr",
+        "categoryAr",
+        "categoryFr",
+        "image",
+        "date",
+        "views",
+        "isPinned",
+        "isDraft"
+      ]
+    },
+    "AnnouncementItem": {
+      "title": "AnnouncementItem",
+      "description": "Priority announcement item for public notice",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "titleAr": { "type": "string" },
+        "titleFr": { "type": "string" },
+        "contentAr": { "type": "string" },
+        "contentFr": { "type": "string" },
+        "priority": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+        "date": { "type": "string" },
+        "isPinned": { "type": "boolean" },
+        "expiryDate": { "type": "string" },
+        "attachmentUrl": { "type": "string" }
+      },
+      "required": [
+        "id",
+        "titleAr",
+        "titleFr",
+        "contentAr",
+        "contentFr",
+        "priority",
+        "date",
+        "isPinned"
+      ]
+    },
+    "Member": {
+      "title": "Member",
+      "description": "Committee team member profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nameAr": { "type": "string" },
+        "nameFr": { "type": "string" },
+        "roleAr": { "type": "string" },
+        "roleFr": { "type": "string" },
+        "bioAr": { "type": "string" },
+        "bioFr": { "type": "string" },
+        "image": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "displayOrder": { "type": "integer" }
+      },
+      "required": [
+        "id",
+        "nameAr",
+        "nameFr",
+        "roleAr",
+        "roleFr",
+        "bioAr",
+        "bioFr",
+        "image",
+        "displayOrder"
+      ]
+    },
+    "FirstAidTopic": {
+      "title": "FirstAidTopic",
+      "description": "Educational first aid instruction topics",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "titleAr": { "type": "string" },
+        "titleFr": { "type": "string" },
+        "descriptionAr": { "type": "string" },
+        "descriptionFr": { "type": "string" },
+        "emergencyInstructionsAr": { "type": "string" },
+        "emergencyInstructionsFr": { "type": "string" },
+        "icon": { "type": "string" },
+        "stepsAr": { "type": "array" },
+        "stepsFr": { "type": "array" },
+        "videoUrl": { "type": "string" }
+      },
+      "required": [
+        "id",
+        "titleAr",
+        "titleFr",
+        "descriptionAr",
+        "descriptionFr",
+        "emergencyInstructionsAr",
+        "emergencyInstructionsFr",
+        "icon",
+        "stepsAr",
+        "stepsFr"
+      ]
+    },
+    "BloodCampaign": {
+      "title": "BloodCampaign",
+      "description": "Blood donation event details and status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "titleAr": { "type": "string" },
+        "titleFr": { "type": "string" },
+        "locationAr": { "type": "string" },
+        "locationFr": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "status": { "type": "string", "enum": ["upcoming", "ongoing", "completed"] },
+        "descriptionAr": { "type": "string" },
+        "descriptionFr": { "type": "string" },
+        "collectedUnits": { "type": "integer" }
+      },
+      "required": [
+        "id",
+        "titleAr",
+        "titleFr",
+        "locationAr",
+        "locationFr",
+        "date",
+        "time",
+        "status",
+        "descriptionAr",
+        "descriptionFr"
+      ]
+    },
+    "VolunteerApplication": {
+      "title": "VolunteerApplication",
+      "description": "Volunteer submission form containing applicant PII",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "fullName": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "birthDate": { "type": "string" },
+        "gender": { "type": "string" },
+        "bloodType": { "type": "string" },
+        "profession": { "type": "string" },
+        "skillsAr": { "type": "string" },
+        "skillsFr": { "type": "string" },
+        "appliedDate": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "notes": { "type": "string" }
+      },
+      "required": [
+        "id",
+        "fullName",
+        "email",
+        "phone",
+        "birthDate",
+        "gender",
+        "bloodType",
+        "profession",
+        "appliedDate",
+        "status"
+      ]
+    },
+    "ContactMessage": {
+      "title": "ContactMessage",
+      "description": "General contact form submissions containing applicant PII",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "subject": { "type": "string" },
+        "message": { "type": "string" },
+        "date": { "type": "string" },
+        "isRead": { "type": "boolean" }
+      },
+      "required": ["id", "name", "email", "subject", "message", "date", "isRead"]
+    },
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Privileged users allowed to configure application databases",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["super_admin", "admin", "editor", "volunteer_manager", "viewer"] },
+        "createdAt": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "disabled"] }
+      },
+      "required": ["uid", "email", "displayName", "role", "createdAt", "status"]
+    }
+  },
+  "firestore": {
+    "/statistics/general": {
+      "schema": { "$ref": "#/entities/InstitutionStats" },
+      "description": "Branch-wide performance and capacity statistics"
+    },
+    "/settings/general": {
+      "schema": { "$ref": "#/entities/Settings" },
+      "description": "Bilingual organization settings and contact URLs"
+    },
+    "/news/{newsId}": {
+      "schema": { "$ref": "#/entities/NewsItem" },
+      "description": "Bilingual news items, ordered descending"
+    },
+    "/announcements/{annId}": {
+      "schema": { "$ref": "#/entities/AnnouncementItem" },
+      "description": "Branch priority notices and announcements"
+    },
+    "/members/{memId}": {
+      "schema": { "$ref": "#/entities/Member" },
+      "description": "Wilaya committee leadership board members"
+    },
+    "/first_aid/{faId}": {
+      "schema": { "$ref": "#/entities/FirstAidTopic" },
+      "description": "Educational topics for life-saving first-aid instructions"
+    },
+    "/blood_campaigns/{campId}": {
+      "schema": { "$ref": "#/entities/BloodCampaign" },
+      "description": "Blood donation drives organized by the committee"
+    },
+    "/volunteers/{volId}": {
+      "schema": { "$ref": "#/entities/VolunteerApplication" },
+      "description": "Form submissions by volunteers wishing to join the committee"
+    },
+    "/contact_messages/{msgId}": {
+      "schema": { "$ref": "#/entities/ContactMessage" },
+      "description": "General user inquiry messages"
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/AdminUser" },
+      "description": "Administrative credentials mapping"
+    }
+  }
+}
