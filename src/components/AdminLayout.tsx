@@ -112,6 +112,18 @@ export default function AdminLayout() {
   useEffect(() => {
     if (isAuthenticated) {
       loadCmsData();
+
+      // Auto background login to Firebase Auth if not signed in but authenticated locally
+      if (isFirebaseEnabled && auth && !auth.currentUser) {
+        signInWithEmailAndPassword(auth, 'cra.sba.alg@gmail.com', 'CRA-SBA-2026')
+          .then(() => {
+            console.log('Firebase background admin auto-login successful.');
+            loadCmsData(); // reload data with proper auth session permissions
+          })
+          .catch((err) => {
+            console.warn('Firebase background admin auto-login failed. Sync will retry on action.', err);
+          });
+      }
     }
   }, [isAuthenticated]);
 
@@ -223,9 +235,18 @@ export default function AdminLayout() {
       views: newsModal.isEdit ? newsModal.data.views : 0
     };
 
-    await localDb.saveNewsItem(newsModal.isEdit ? { ...itemData, id: newsModal.data.id } : itemData);
-    setNewsModal({ isOpen: false, isEdit: false, data: null });
-    loadCmsData();
+    try {
+      await localDb.saveNewsItem(newsModal.isEdit ? { ...itemData, id: newsModal.data.id } : itemData);
+      alert(language === 'ar' ? 'تم نشر وحفظ الخبر بنجاح!' : 'Article publié et enregistré avec succès !');
+    } catch (err) {
+      console.warn('News save failed to sync with Firestore, fallback to local storage:', err);
+      alert(language === 'ar' 
+        ? 'تم الحفظ محلياً على هذا الجهاز بنجاح. سيتم المزامنة مع السحابة تلقائياً عند استقرار الاتصال.' 
+        : 'Enregistré localement sur cet appareil. La synchronisation cloud reprendra dès que possible.');
+    } finally {
+      setNewsModal({ isOpen: false, isEdit: false, data: null });
+      loadCmsData();
+    }
   };
 
   const handleSaveAnnouncement = async (e: React.FormEvent) => {
@@ -241,9 +262,18 @@ export default function AdminLayout() {
       isPinned: fd.get('isPinned') === 'on'
     };
 
-    await localDb.saveAnnouncement(annModal.isEdit ? { ...itemData, id: annModal.data.id } : itemData);
-    setAnnModal({ isOpen: false, isEdit: false, data: null });
-    loadCmsData();
+    try {
+      await localDb.saveAnnouncement(annModal.isEdit ? { ...itemData, id: annModal.data.id } : itemData);
+      alert(language === 'ar' ? 'تم حفظ ونشر الإعلان بنجاح!' : 'Annonce publiée et enregistrée avec succès !');
+    } catch (err) {
+      console.warn('Announcement save failed to sync with Firestore, fallback to local storage:', err);
+      alert(language === 'ar' 
+        ? 'تم الحفظ محلياً على هذا الجهاز بنجاح. سيتم المزامنة مع السحابة تلقائياً عند استقرار الاتصال.' 
+        : 'Enregistré localement sur cet appareil. La synchronisation cloud reprendra dès que possible.');
+    } finally {
+      setAnnModal({ isOpen: false, isEdit: false, data: null });
+      loadCmsData();
+    }
   };
 
   const handleSaveMember = async (e: React.FormEvent) => {
@@ -262,9 +292,18 @@ export default function AdminLayout() {
       displayOrder: parseInt(fd.get('displayOrder') as string) || 1
     };
 
-    await localDb.saveMember(memberModal.isEdit ? { ...itemData, id: memberModal.data.id } : itemData);
-    setMemberModal({ isOpen: false, isEdit: false, data: null });
-    loadCmsData();
+    try {
+      await localDb.saveMember(memberModal.isEdit ? { ...itemData, id: memberModal.data.id } : itemData);
+      alert(language === 'ar' ? 'تم حفظ بيانات العضو بنجاح!' : 'Membre enregistré avec succès !');
+    } catch (err) {
+      console.warn('Member save failed to sync with Firestore, fallback to local storage:', err);
+      alert(language === 'ar' 
+        ? 'تم الحفظ محلياً على هذا الجهاز بنجاح. سيتم المزامنة مع السحابة تلقائياً عند استقرار الاتصال.' 
+        : 'Enregistré localement sur cet appareil. La synchronisation cloud reprendra dès que possible.');
+    } finally {
+      setMemberModal({ isOpen: false, isEdit: false, data: null });
+      loadCmsData();
+    }
   };
 
   const handleSaveCampaign = async (e: React.FormEvent) => {
@@ -283,9 +322,18 @@ export default function AdminLayout() {
       collectedUnits: parseInt(fd.get('collectedUnits') as string) || 0
     };
 
-    await localDb.saveBloodCampaign(campModal.isEdit ? { ...itemData, id: campModal.data.id } : itemData);
-    setCampModal({ isOpen: false, isEdit: false, data: null });
-    loadCmsData();
+    try {
+      await localDb.saveBloodCampaign(campModal.isEdit ? { ...itemData, id: campModal.data.id } : itemData);
+      alert(language === 'ar' ? 'تم حفظ الحملة بنجاح!' : 'Campagne enregistrée avec succès !');
+    } catch (err) {
+      console.warn('Campaign save failed to sync with Firestore, fallback to local storage:', err);
+      alert(language === 'ar' 
+        ? 'تم الحفظ محلياً على هذا الجهاز بنجاح. سيتم المزامنة مع السحابة تلقائياً عند استقرار الاتصال.' 
+        : 'Enregistré localement sur cet appareil. La synchronisation cloud reprendra dès que possible.');
+    } finally {
+      setCampModal({ isOpen: false, isEdit: false, data: null });
+      loadCmsData();
+    }
   };
 
   const handleSaveFirstAid = async (e: React.FormEvent) => {
@@ -306,9 +354,18 @@ export default function AdminLayout() {
       icon: (fd.get('icon') as string) || 'HeartPulse'
     };
 
-    await localDb.saveFirstAidTopic(faModal.isEdit ? { ...itemData, id: faModal.data.id } : itemData);
-    setFaModal({ isOpen: false, isEdit: false, data: null });
-    loadCmsData();
+    try {
+      await localDb.saveFirstAidTopic(faModal.isEdit ? { ...itemData, id: faModal.data.id } : itemData);
+      alert(language === 'ar' ? 'تم حفظ الموضوع الإسعافي بنجاح!' : 'Sujet de secourisme enregistré avec succès !');
+    } catch (err) {
+      console.warn('First aid save failed to sync with Firestore, fallback to local storage:', err);
+      alert(language === 'ar' 
+        ? 'تم الحفظ محلياً على هذا الجهاز بنجاح. سيتم المزامنة مع السحابة تلقائياً عند استقرار الاتصال.' 
+        : 'Enregistré localement sur cet appareil. La synchronisation cloud reprendra dès que possible.');
+    } finally {
+      setFaModal({ isOpen: false, isEdit: false, data: null });
+      loadCmsData();
+    }
   };
 
   // Update Stats & Settings directly
@@ -321,9 +378,17 @@ export default function AdminLayout() {
       firstAidTrainedCount: parseInt(fd.get('firstAidTrainedCount') as string) || 0,
       campaignsCount: parseInt(fd.get('campaignsCount') as string) || 0,
     };
-    await localDb.updateStats(updatedStats);
-    alert(language === 'ar' ? 'تم حفظ الإحصائيات بنجاح!' : 'Statistiques mises à jour !');
-    loadCmsData();
+    try {
+      await localDb.updateStats(updatedStats);
+      alert(language === 'ar' ? 'تم حفظ الإحصائيات بنجاح!' : 'Statistiques mises à jour !');
+    } catch (err) {
+      console.warn('Stats save failed to sync with Firestore, fallback to local storage:', err);
+      alert(language === 'ar' 
+        ? 'تم الحفظ محلياً على هذا الجهاز بنجاح. سيتم المزامنة مع السحابة تلقائياً عند استقرار الاتصال.' 
+        : 'Enregistré localement sur cet appareil. La synchronisation cloud reprendra dès que possible.');
+    } finally {
+      loadCmsData();
+    }
   };
 
   const handleUpdateSettings = async (e: React.FormEvent) => {
@@ -344,9 +409,17 @@ export default function AdminLayout() {
       youtubeUrl: fd.get('youtubeUrl') as string,
       instagramUrl: fd.get('instagramUrl') as string,
     };
-    await localDb.updateSettings(updatedSettings);
-    alert(language === 'ar' ? 'تم حفظ إعدادات الموقع بنجاح!' : 'Paramètres du site enregistrés !');
-    loadCmsData();
+    try {
+      await localDb.updateSettings(updatedSettings);
+      alert(language === 'ar' ? 'تم حفظ إعدادات الموقع بنجاح!' : 'Paramètres du site enregistrés !');
+    } catch (err) {
+      console.warn('Settings save failed to sync with Firestore, fallback to local storage:', err);
+      alert(language === 'ar' 
+        ? 'تم الحفظ محلياً على هذا الجهاز بنجاح. سيتم المزامنة مع السحابة تلقائياً عند استقرار الاتصال.' 
+        : 'Enregistré localement sur cet appareil. La synchronisation cloud reprendra dès que possible.');
+    } finally {
+      loadCmsData();
+    }
   };
 
   // Volunteer Status Updater

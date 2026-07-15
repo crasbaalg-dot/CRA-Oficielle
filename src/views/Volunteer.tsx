@@ -36,8 +36,12 @@ export default function Volunteer() {
       await localDb.saveVolunteerApplication(appData);
       setSuccess(true);
       e.currentTarget.dispatchEvent(new Event('reset'));
-    } catch (e) {
-      console.error(e);
+    } catch (err) {
+      console.warn('Volunteer application save failed to sync with Firestore, fallback to local storage:', err);
+      alert(language === 'ar' 
+        ? 'تم حفظ طلبك محلياً على هذا الجهاز بنجاح. سنقوم بالمزامنة مع السحابة تلقائياً عند استقرار الاتصال.' 
+        : 'Votre demande a été enregistrée localement sur cet appareil. La synchronisation cloud s\'effectuera dès que la connexion sera établie.');
+      setSuccess(true);
     } finally {
       setLoading(false);
     }

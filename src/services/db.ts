@@ -358,8 +358,7 @@ class LocalDbService {
 
         // Only authenticated admin should perform seeding writes
         const currentUserEmail = auth?.currentUser?.email;
-        const isLocalAdmin = localStorage.getItem('cra_sba_admin_logged') === 'true';
-        if (!currentUserEmail && !isLocalAdmin) {
+        if (!currentUserEmail) {
           console.log('Database not seeded yet. Guest user falling back to local defaults.');
           return;
         }
@@ -861,16 +860,20 @@ class LocalDbService {
   // --- Volunteer Applications ---
   async getVolunteerApplications(): Promise<VolunteerApplication[]> {
     if (isFirebaseEnabled) {
-      try {
-        await this.ensureSeeded();
-        const querySnapshot = await getDocs(collection(db!, 'volunteers'));
-        const fbVol: VolunteerApplication[] = [];
-        querySnapshot.forEach((doc) => {
-          fbVol.push({ id: doc.id, ...doc.data() } as VolunteerApplication);
-        });
-        if (fbVol.length > 0) return fbVol;
-      } catch (e) {
-        handleFirestoreError(e, OperationType.LIST, 'volunteers');
+      const isLocalAdmin = localStorage.getItem('cra_sba_admin_logged') === 'true';
+      const currentUserEmail = auth?.currentUser?.email;
+      if (isLocalAdmin || currentUserEmail) {
+        try {
+          await this.ensureSeeded();
+          const querySnapshot = await getDocs(collection(db!, 'volunteers'));
+          const fbVol: VolunteerApplication[] = [];
+          querySnapshot.forEach((doc) => {
+            fbVol.push({ id: doc.id, ...doc.data() } as VolunteerApplication);
+          });
+          if (fbVol.length > 0) return fbVol;
+        } catch (e) {
+          handleFirestoreError(e, OperationType.LIST, 'volunteers');
+        }
       }
     }
     return this.getStorageItem<VolunteerApplication[]>('volunteers', []);
@@ -921,16 +924,20 @@ class LocalDbService {
   // --- Contact Messages ---
   async getContactMessages(): Promise<ContactMessage[]> {
     if (isFirebaseEnabled) {
-      try {
-        await this.ensureSeeded();
-        const querySnapshot = await getDocs(collection(db!, 'contact_messages'));
-        const fbMsg: ContactMessage[] = [];
-        querySnapshot.forEach((doc) => {
-          fbMsg.push({ id: doc.id, ...doc.data() } as ContactMessage);
-        });
-        if (fbMsg.length > 0) return fbMsg;
-      } catch (e) {
-        handleFirestoreError(e, OperationType.LIST, 'contact_messages');
+      const isLocalAdmin = localStorage.getItem('cra_sba_admin_logged') === 'true';
+      const currentUserEmail = auth?.currentUser?.email;
+      if (isLocalAdmin || currentUserEmail) {
+        try {
+          await this.ensureSeeded();
+          const querySnapshot = await getDocs(collection(db!, 'contact_messages'));
+          const fbMsg: ContactMessage[] = [];
+          querySnapshot.forEach((doc) => {
+            fbMsg.push({ id: doc.id, ...doc.data() } as ContactMessage);
+          });
+          if (fbMsg.length > 0) return fbMsg;
+        } catch (e) {
+          handleFirestoreError(e, OperationType.LIST, 'contact_messages');
+        }
       }
     }
     return this.getStorageItem<ContactMessage[]>('contact_messages', []);
@@ -1004,16 +1011,20 @@ class LocalDbService {
       }
     ];
     if (isFirebaseEnabled) {
-      try {
-        await this.ensureSeeded();
-        const querySnapshot = await getDocs(collection(db!, 'admins'));
-        const fbAdmins: User[] = [];
-        querySnapshot.forEach((doc) => {
-          fbAdmins.push({ uid: doc.id, ...doc.data() } as User);
-        });
-        if (fbAdmins.length > 0) return fbAdmins;
-      } catch (e) {
-        handleFirestoreError(e, OperationType.LIST, 'admins');
+      const isLocalAdmin = localStorage.getItem('cra_sba_admin_logged') === 'true';
+      const currentUserEmail = auth?.currentUser?.email;
+      if (isLocalAdmin || currentUserEmail) {
+        try {
+          await this.ensureSeeded();
+          const querySnapshot = await getDocs(collection(db!, 'admins'));
+          const fbAdmins: User[] = [];
+          querySnapshot.forEach((doc) => {
+            fbAdmins.push({ uid: doc.id, ...doc.data() } as User);
+          });
+          if (fbAdmins.length > 0) return fbAdmins;
+        } catch (e) {
+          handleFirestoreError(e, OperationType.LIST, 'admins');
+        }
       }
     }
     return this.getStorageItem<User[]>('admins', defaultAdmins);
