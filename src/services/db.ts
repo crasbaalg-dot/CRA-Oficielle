@@ -495,11 +495,15 @@ class LocalDbService {
     this.setStorageItem('statistics', updated);
     
     if (isFirebaseEnabled) {
-      try {
-        await this.ensureSeeded();
-        await setDoc(doc(db!, 'statistics', 'general'), updated);
-      } catch (e) {
-        handleFirestoreError(e, OperationType.WRITE, 'statistics/general');
+      const isLocalAdmin = localStorage.getItem('cra_sba_admin_logged') === 'true';
+      const currentUserEmail = auth?.currentUser?.email;
+      if (isLocalAdmin || currentUserEmail) {
+        try {
+          await this.ensureSeeded();
+          await setDoc(doc(db!, 'statistics', 'general'), updated);
+        } catch (e) {
+          handleFirestoreError(e, OperationType.WRITE, 'statistics/general');
+        }
       }
     }
     return updated;
@@ -528,11 +532,15 @@ class LocalDbService {
     this.setStorageItem('settings', updated);
 
     if (isFirebaseEnabled) {
-      try {
-        await this.ensureSeeded();
-        await setDoc(doc(db!, 'settings', 'general'), updated);
-      } catch (e) {
-        handleFirestoreError(e, OperationType.WRITE, 'settings/general');
+      const isLocalAdmin = localStorage.getItem('cra_sba_admin_logged') === 'true';
+      const currentUserEmail = auth?.currentUser?.email;
+      if (isLocalAdmin || currentUserEmail) {
+        try {
+          await this.ensureSeeded();
+          await setDoc(doc(db!, 'settings', 'general'), updated);
+        } catch (e) {
+          handleFirestoreError(e, OperationType.WRITE, 'settings/general');
+        }
       }
     }
     return updated;
